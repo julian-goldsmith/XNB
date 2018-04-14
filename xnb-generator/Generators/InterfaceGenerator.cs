@@ -1,5 +1,12 @@
 ﻿using System;
+using System.IO;
+using System.Linq;
 using System.Collections.Generic;
+
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 using Schemas;
 
@@ -9,46 +16,37 @@ namespace xnbgenerator.Generators
     {
 		public void Generate(xcb xcb, string name)
 		{
-            CodeWriter cwi = new CodeWriter(name + "Iface.cs");
-
-			cwi.WriteLine("using System;");
-            cwi.WriteLine("");
-
-            cwi.WriteLine("public interface I" + name);
-            cwi.WriteLine("{");
+			InterfaceDeclarationSyntax ids = InterfaceDeclaration("I" + name);
             
-            foreach (object o in xcb.Items)
+			foreach (@request req in xcb.Items.Where(r => r is @request).Cast<@request>())
             {
-                if (o == null)
-				{
-					continue;               
-                }
-                else if (o is @request)
-                {
-                    GenFunction(cwi, o as @request, name);
-                }
+				ids = ids.AddMembers(GenFunction(req, name));
             }
+            
+            CompilationUnitSyntax cu = CompilationUnit().
+                AddUsings(UsingDirective(IdentifierName("System"))).
+			    WithMembers(SingletonList<MemberDeclarationSyntax>(ids)).
+                NormalizeWhitespace();
 
-            cwi.WriteLine("}");
-   
-            cwi.Close();
+			using (FileStream fs = new FileStream(name + "Iface.cs", FileMode.Create))
+			using (TextWriter tw = new StreamWriter(fs))
+			{
+				cu.WriteTo(tw);
+			}
 		}
-
-
-        static void GenFunction(CodeWriter cwi, @request r, string name)
+        
+        private MethodDeclarationSyntax GenFunction(@request r, string name)
         {
             if (r.name == null)
 			{
-                return;
+                return null;
 			}
 
             //TODO: share code with struct
-            string parms = "";
-            List<string> parmList1 = new List<string>();
-            List<string> parmList2 = new List<string>();
+			List<ParameterSyntax> parameters = new List<ParameterSyntax>();
 
             if (r.Items != null)
-            {            
+            {
                 foreach (object ob in r.Items)
                 {
                     if (ob is field)
@@ -56,10 +54,8 @@ namespace xnbgenerator.Generators
                         field f = ob as field;
                         if (f.name == null)
                             continue;
-
-						parms += ", " + Generator.TypeToCs(f.type) + " @" + 
-							GeneratorUtil.ToParm(GeneratorUtil.ToCs(f.name));
-						parmList1.Add(GeneratorUtil.ToCs(f.name));
+                        
+						parameters.Add(Parameter(Identifier(f.name)).WithType(IdentifierName(f.type)));
                     }
                     else if (ob is list)
                     {
@@ -70,42 +66,61 @@ namespace xnbgenerator.Generators
 							continue;
 						}
 
+						string listName = "@" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(l.name));
+
                         if (l.type == "char")
                         {
-							parms += ", string @" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(l.name));
-							parmList2.Add(GeneratorUtil.ToCs(l.name));
+							parameters.Add(Parameter(Identifier(listName)).
+							               WithType(PredefinedType(Token(SyntaxKind.StringKeyword))));
                         }
                         else if (l.type == "CARD32")
                         {
-							parms += ", uint[] @" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(l.name));
-							parmList2.Add(GeneratorUtil.ToCs(l.name));
+							parameters.Add(Parameter(Identifier(listName)).
+							               WithType(ArrayType(PredefinedType(Token(SyntaxKind.UIntKeyword))).
+							                        WithRankSpecifiers(SingletonList(
+								                        ArrayRankSpecifier(
+									                        SingletonSeparatedList<ExpressionSyntax>(
+										                        OmittedArraySizeExpression()))))));
                         }
                     }
                     else if (ob is valueparam)
                     {
                         valueparam v = ob as valueparam;
-						string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);                  
+
+						string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToParm(GeneratorUtil.ToCs(v.valuelistname));
 						string vType = Generator.TypeToCs(v.valuemasktype);
 
                         if (vType == "uint")
-                        {
-							parms += ", uint[] @" + GeneratorUtil.ToParm(vName);
-                            parmList2.Add(vName);
+                        {                     
+							parameters.Add(Parameter(Identifier(vName)).
+                                           WithType(ArrayType(PredefinedType(Token(SyntaxKind.UIntKeyword))).
+                                                    WithRankSpecifiers(SingletonList(
+                                                        ArrayRankSpecifier(
+                                                            SingletonSeparatedList<ExpressionSyntax>(
+                                                                OmittedArraySizeExpression()))))));
                         }
                     }
                 }
-
-                parms = parms.Trim(',', ' ');
             }
-
+   
 			if (r.reply != null)
 			{
-				cwi.WriteLine("public Cookie<" + GeneratorUtil.ToCs(r.name) + "Reply> " + 
-				              GeneratorUtil.ToCs(r.name) + " (" + parms + ");");
+				TypeSyntax returnType = GenericName(Identifier("Cookie"), 
+				                                    TypeArgumentList(SingletonSeparatedList<TypeSyntax>(
+					                                    IdentifierName(GeneratorUtil.ToCs(r.name)))));
+    
+				return MethodDeclaration(returnType, Identifier(GeneratorUtil.ToCs(r.name))).
+                    WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword))).
+					WithParameterList(ParameterList(SeparatedList(parameters))).
+					WithSemicolonToken(Token(SyntaxKind.SemicolonToken));
 			}
             else
 			{
-				cwi.WriteLine("public void " + GeneratorUtil.ToCs(r.name) + " (" + parms + ");");            
+				return MethodDeclaration(PredefinedType(Token(SyntaxKind.VoidKeyword)), 
+				                         Identifier(GeneratorUtil.ToCs(r.name))).
+                    WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword))).
+                    WithParameterList(ParameterList(SeparatedList(parameters))).
+                    WithSemicolonToken(Token(SyntaxKind.SemicolonToken));
             }
         }
     }
