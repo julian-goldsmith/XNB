@@ -57,7 +57,8 @@ namespace xnbgenerator.Generators
                         if (f.name == null)
                             continue;
 
-						parms += ", " + TypeToCs(f.type) + " @" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(f.name));
+						parms += ", " + Generator.TypeToCs(f.type) + " @" + 
+							GeneratorUtil.ToParm(GeneratorUtil.ToCs(f.name));
 						parmList1.Add(GeneratorUtil.ToCs(f.name));
                     }
                     else if (ob is list)
@@ -84,7 +85,7 @@ namespace xnbgenerator.Generators
                     {
                         valueparam v = ob as valueparam;
 						string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);                  
-                        string vType = TypeToCs(v.valuemasktype);
+						string vType = Generator.TypeToCs(v.valuemasktype);
 
                         if (vType == "uint")
                         {

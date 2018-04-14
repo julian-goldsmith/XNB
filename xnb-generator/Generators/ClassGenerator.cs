@@ -6,8 +6,12 @@ namespace xnbgenerator.Generators
 {
     public class ClassGenerator
     {
+		bool isExtension = false;
+
         public void Generate(xcb xcb, string name, string extName)
 		{
+            isExtension = !string.IsNullOrEmpty(extName);
+
             CodeWriter cw = new CodeWriter(name + ".cs");
 
             cw.WriteLine("using System;");
@@ -55,7 +59,7 @@ namespace xnbgenerator.Generators
             cw.Close();
         }
 
-		static void GenEvent(CodeWriter cw, @event e, string name)
+		void GenEvent(CodeWriter cw, @event e, string name)
 		{
 			if (e.name == null)
 			{
@@ -67,7 +71,7 @@ namespace xnbgenerator.Generators
             cw.WriteLine();
         }
 
-		static void GenFunction(CodeWriter cw, @request r, string name)
+		void GenFunction(CodeWriter cw, @request r, string name)
         {
             if (r.name == null)
 			{
@@ -91,7 +95,7 @@ namespace xnbgenerator.Generators
 							continue;                        
                         }
                         
-						parms += ", " + TypeToCs(f.type) + " @" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(f.name));
+						parms += ", " + Generator.TypeToCs(f.type) + " @" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(f.name));
 						parmList1.Add(GeneratorUtil.ToCs(f.name));
                     }
                     else if (ob is list)
@@ -116,7 +120,7 @@ namespace xnbgenerator.Generators
                     {
                         valueparam v = ob as valueparam;
 						string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);                     
-                        string vType = TypeToCs(v.valuemasktype);
+						string vType = Generator.TypeToCs(v.valuemasktype);
 
                         if (vType == "uint")
                         {
@@ -134,7 +138,8 @@ namespace xnbgenerator.Generators
 
 			if (r.reply != null)
 			{
-				cw.WriteLine("public Cookie<" + GeneratorUtil.(r.name) + "Reply> " + GeneratorUtil.ToCs(r.name) + " (" + parms + ");");
+				cw.WriteLine("public Cookie<" + GeneratorUtil.ToCs(r.name) + "Reply> " + GeneratorUtil.ToCs(r.name) + 
+				             " (" + parms + ");");
 			}
 			else
 			{
@@ -179,7 +184,8 @@ namespace xnbgenerator.Generators
 							continue;
                         }
 
-						cw.WriteLine("req.@" + GeneratorUtil.ToCs(l.name) + " = @" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(l.name)) + ";");
+						cw.WriteLine("req.@" + GeneratorUtil.ToCs(l.name) + " = @" + 
+						             GeneratorUtil.ToParm(GeneratorUtil.ToCs(l.name)) + ";");
                     }
                 }
             }

@@ -1,4 +1,5 @@
 ﻿using System;
+
 namespace xnbgenerator.Generators
 {
     public static class GeneratorUtil
