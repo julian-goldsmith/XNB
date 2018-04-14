@@ -43,6 +43,8 @@
     <Compile Include="Program.cs" />
     <Compile Include="Generators\InterfaceGenerator.cs" />
     <Compile Include="Generators\GeneratorUtil.cs" />
+    <Compile Include="Generators\TypesGenerator.cs" />
+    <Compile Include="Generators\ClassGenerator.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="XcbSchema.xsd" />

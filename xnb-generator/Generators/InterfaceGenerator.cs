@@ -6,7 +6,7 @@ using Schemas;
 namespace xnbgenerator.Generators
 {
     public class InterfaceGenerator
-    {      
+    {
 		public void Generate(xcb xcb, string name)
 		{
             CodeWriter cwi = new CodeWriter(name + "Iface.cs");

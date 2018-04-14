@@ -110,8 +110,10 @@ public class Generator
 		cwt.WriteLine ("return new Id (x);");
 		cwt.WriteLine ("}");
 		cwt.WriteLine ();
+
 		//TODO: generalize
-		if (xName == "AtomId") {
+		if (xName == "AtomId")
+		{
 			cwt.WriteLine ("public static implicit operator " + xName + " (" + "Atom" + "Type" + " xt)");
 			cwt.WriteLine ("{");
 			cwt.WriteLine ("return new " + xName + " ((uint)xt);");
@@ -182,112 +184,6 @@ public class Generator
 			GenClass (cwt, NewTypeToCs (ToCs (r.name) + "Reply"), r.reply.Items);
 		}
 	}
-
-	static void GenFunction (CodeWriter cw, @request r, string name)
-	{
-		if (r.name == null)
-			return;
-
-		//TODO: share code with struct
-		string parms = "";
-		List<string> parmList1 = new List<string> ();
-		List<string> parmList2 = new List<string> ();
-		if (r.Items != null) {
-
-			foreach (object ob in r.Items) {
-				if (ob is field) {
-					field f = ob as field;
-					if (f.name == null)
-						continue;
-
-					parms += ", " + TypeToCs (f.type) + " @" + ToParm (ToCs (f.name));
-					parmList1.Add (ToCs (f.name));
-				} else if (ob is list) {
-					list l = ob as list;
-					if (l.name == null)
-						continue;
-					if (l.type == "char") {
-						parms += ", string @" + ToParm (ToCs (l.name));
-						parmList2.Add (ToCs (l.name));
-					} else if (l.type == "CARD32") {
-						parms += ", uint[] @" + ToParm (ToCs (l.name));
-						parmList2.Add (ToCs (l.name));
-					}
-				} else if (ob is valueparam) {
-						valueparam v = ob as valueparam;
-						string vName = "Values";
-
-						if (v.valuelistname != null)
-							vName = ToCs (v.valuelistname);
-
-						string vType = TypeToCs (v.valuemasktype);
-
-						if (vType == "uint") {
-							parms += ", uint[] @" + ToParm (vName);
-							parmList2.Add (vName);
-						}
-				}
-			}
-
-			parms = parms.Trim (',', ' ');
-		}
-  
-		if (r.reply != null)
-			cw.WriteLine ("public Cookie<" + ToCs (r.name) + "Reply> " + ToCs (r.name) + " (" + parms + ");");
-		else
-			cw.WriteLine ("public void " + ToCs (r.name) + " (" + parms + ");");
-
-		cw.WriteLine ("{");
-        
-		cw.WriteLine ("" + ToCs (r.name) + "Request req = new " + ToCs (r.name) + "Request ();");
-
-		if (isExtension)
-		{
-			cw.WriteLine ("req.MessageData.ExtHeader.MajorOpcode = GlobalId;");
-			cw.WriteLine ("req.MessageData.ExtHeader.MinorOpcode = " + r.opcode + ";");
-		}
-		else
-		{
-			cw.WriteLine ("req.MessageData.Header.Opcode = " + r.opcode + ";");
-		}
-		cw.WriteLine ();
-        
-		foreach (string par in parmList1)
-			cw.WriteLine ("req.MessageData.@" + par + " = @" + ToParm (par) + ";");
-
-		foreach (string par in parmList2)
-			cw.WriteLine ("req.@" + par + " = @" + ToParm (par) + ";");
-
-		if (r.Items != null)
-		{
-			foreach (object ob in r.Items)
-			{
-				if (ob is list)
-				{
-					list l = ob as list;
-					if (l.name == null)
-						continue;
-					if (l.type != "char")
-						continue;
-     
-					cw.WriteLine ("req.@" + ToCs (l.name) + " = @" + ToParm (ToCs (l.name)) + ";");
-				}
-			}
-        }
-
-		cw.WriteLine ();
-		cw.WriteLine ("c.xw.Send (req);");
-		cw.WriteLine ();
-		
-		if (r.reply != null)
-		{
-			cw.WriteLine ();
-			cw.WriteLine ("return c.xrr.GenerateCookie" + "<" + ToCs (r.name) + "Reply" + ">" + " ();");
-		}
-		
-		cw.WriteLine ("}");
-		cw.WriteLine ();
-	}
     
 	static void GenEnum (CodeWriter cwt, @enum e)
 	{
@@ -310,8 +206,7 @@ public class Generator
 	{
 		return;
 	}
-
-
+    
 	static void GenStruct (CodeWriter cwt, @struct s)
 	{
 		if (s.name == null)
