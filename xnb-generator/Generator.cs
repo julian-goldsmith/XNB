@@ -11,15 +11,15 @@ public class Driver
 {
 	public static int Main(string[] args)
 	{
-		List<string> srcFiles;//opts.RemainingArguments;
+		List<string> srcFiles = new List<string>();//opts.RemainingArguments;
 
 		string reference = null;
 		string outName = null;
-
+        
 		var options = new OptionSet
 		{
-			{ "r|ref", "Reference", r => reference = r },
-			{ "o|out", "Output name", o => outName = o },
+			{ "r|ref=", "Reference", r => reference = r },
+			{ "o|out=", "Output name", o => outName = o },
 		};
 
 		srcFiles = options.Parse(args);
