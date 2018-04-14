@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
+    <ProjectGuid>{7F1A12F1-F22E-4347-AC88-E9878A33FD7A}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>XNB</RootNamespace>
+    <AssemblyName>XNB</AssemblyName>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Attributes.cs" />
+    <Compile Include="Authentication.cs" />
+    <Compile Include="Auxiliary.cs" />
+    <Compile Include="Connection.cs" />
+    <Compile Include="Extension.cs" />
+    <Compile Include="IOVector.cs" />
+    <Compile Include="Object.cs" />
+    <Compile Include="Structs.cs" />
+    <Compile Include="TestServer.cs" />
+    <Compile Include="TestSimple.cs" />
+    <Compile Include="X11.cs" />
+    <Compile Include="Xau.cs" />
+    <Compile Include="XAuth.cs" />
+    <Compile Include="XcbConnection.cs" />
+    <Compile Include="XidManager.cs" />
+    <Compile Include="XMarshaler.cs" />
+    <Compile Include="XReader.cs" />
+    <Compile Include="XRequestReader.cs" />
+    <Compile Include="XResponseReader.cs" />
+    <Compile Include="XServer.cs" />
+    <Compile Include="XWriter.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="TypeMap.txt" />
+    <None Include="XNB.csproj" />
+    <None Include="proto\bigreq.xml" />
+    <None Include="proto\composite.xml" />
+    <None Include="proto\damage.xml" />
+    <None Include="proto\dpms.xml" />
+    <None Include="proto\glx.xml" />
+    <None Include="proto\randr.xml" />
+    <None Include="proto\record.xml" />
+    <None Include="proto\render.xml" />
+    <None Include="proto\res.xml" />
+    <None Include="proto\screensaver.xml" />
+    <None Include="proto\shape.xml" />
+    <None Include="proto\shm.xml" />
+    <None Include="proto\sync.xml" />
+    <None Include="proto\xc_misc.xml" />
+    <None Include="proto\xcb.xsd" />
+    <None Include="proto\xcb_types.xml" />
+    <None Include="proto\xevie.xml" />
+    <None Include="proto\xf86dri.xml" />
+    <None Include="proto\xfixes.xml" />
+    <None Include="proto\xprint.xml" />
+    <None Include="proto\xproto.xml" />
+    <None Include="proto\xv.xml" />
+    <None Include="proto\xvmc.xml" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+</Project>
