@@ -45,6 +45,7 @@
     <Compile Include="Generators\GeneratorUtil.cs" />
     <Compile Include="Generators\TypesGenerator.cs" />
     <Compile Include="Generators\ClassGenerator.cs" />
+    <Compile Include="GlobalSuppressions.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="XcbSchema.xsd" />

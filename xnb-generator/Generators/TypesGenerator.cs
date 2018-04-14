@@ -7,6 +7,7 @@ namespace xnbgenerator.Generators
     public class TypesGenerator
 	{
 		bool isExtension;
+        bool basic = false;
 
 		public void Generate(xcb xcb, string name, string extName)
         {
@@ -67,9 +68,10 @@ namespace xnbgenerator.Generators
 
 			string xName = Generator.NewTypeToCs(x.name, "Id");
 
+            Generator.idMap.Add(xName, "uint");
+
             cwt.WriteLine("[StructLayout (LayoutKind.Explicit, Pack=1, CharSet=CharSet.Ansi)]");
             cwt.WriteLine("public struct " + xName);
-			Generator.idMap.Add(xName, "uint");
             cwt.WriteLine("{");
             cwt.WriteLine("[FieldOffset (0)]");
             cwt.WriteLine("private uint Value;");
@@ -93,9 +95,9 @@ namespace xnbgenerator.Generators
             //TODO: generalize
             if (xName == "AtomId")
             {
-                cwt.WriteLine("public static implicit operator " + xName + " (" + "Atom" + "Type" + " xt)");
+                cwt.WriteLine("public static implicit operator " + xName + " (AtomType xt)");
                 cwt.WriteLine("{");
-                cwt.WriteLine("return new " + xName + " ((uint)xt);");
+                cwt.WriteLine("return new " + xName + " ((uint) xt);");
                 cwt.WriteLine("}");
                 cwt.WriteLine();
             }
@@ -189,24 +191,17 @@ namespace xnbgenerator.Generators
 
         void GenStruct(CodeWriter cwt, @struct s)
         {
-            if (s.name == null)
-                return;
+			if (s.name == null)
+			{
+				return;
+			}
 
             //FIXME: just check to see if it contains complex (list etc.) values instead of this
-            basic = true;
-            if (s.name.EndsWith("Rep"))
-                basic = false;
-            if (s.name.EndsWith("Req"))
-                basic = false;
-            if (s.name == "DEPTH")
-                basic = false;
-            if (s.name == "SCREEN")
-                basic = false;
-            if (s.name == "STR")
-                basic = false;
-            if (s.name == "HOST")
-                basic = false;
+			basic = !(s.name.EndsWith("Rep") || s.name.EndsWith("Req") || s.name == "DEPTH" 
+			          || s.name == "SCREEN" || s.name == "STR" || s.name == "HOST");
+			
 			GenClass(cwt, Generator.NewTypeToCs(s.name), s.Items);
+
             basic = false;
         }
 
@@ -243,8 +238,7 @@ namespace xnbgenerator.Generators
 
             return offset;
         }
-
-        bool basic = false;
+  
         void GenClass(CodeWriter cwt, string sName, object[] sItems, string suffix)
         {
             Dictionary<string, int> sizeParams = new Dictionary<string, int>();
@@ -330,29 +324,29 @@ namespace xnbgenerator.Generators
 
 							string lName = GeneratorUtil.ToCs(l.name);
 							string lType = Generator.TypeToCs(l.type);
+
 							if (lName == sName)
 							{
 								Console.Error.WriteLine("Warning: list field renamed: " + lName);
 								lName = "Values";
 							}
+
 							if (l.type == "CHAR2B" || lType == "sbyte")
 							{
 								cwt.WriteLine("//if (@" + lName + " != null)");
 								cwt.WriteLine("//yield return XMarshal.Do (@" + lName + ");");
-								//cwt.WriteLine (lName + " = Marshal.PtrToStringAnsi (new IntPtr ((int)ptr + offset), MessageData.@" + ToCs (l.fieldref) + ");");
-								cwt.WriteLine("//" + lName + " = Marshal.PtrToStringAnsi (new IntPtr ((int)ptr + offset), MessageData.@" + (lName + "Len") + ");");
+								//cwt.WriteLine (lName + " = Marshal.PtrToStringAnsi (new IntPtr ((int)ptr + offset), "
+								// "MessageData.@" + ToCs (l.fieldref) + ");");
+								cwt.WriteLine("//" + lName + " = Marshal.PtrToStringAnsi (new IntPtr ((int)ptr + offset), MessageData.@" + 
+								              (lName + "Len") + ");");
 								cwt.WriteLine("//offset += " + (lName + "Len") + ";");
-							}
-
+							}                     
 						}
 						else if (ob is valueparam)
 						{
 							valueparam v = ob as valueparam;
-							string vName = "Values";
 
-							if (v.valuelistname != null)
-								vName = GeneratorUtil.ToCs(v.valuelistname);
-
+							string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);                     
 							string vType = Generator.TypeToCs(v.valuemasktype);
 
 							if (vType == "uint")
@@ -367,8 +361,7 @@ namespace xnbgenerator.Generators
                 cwt.WriteLine("return offset;");
                 cwt.WriteLine("}");
                 cwt.WriteLine();
-
-
+                
                 cwt.WriteLine("IEnumerator IEnumerable.GetEnumerator () { return GetEnumerator (); }");
                 cwt.WriteLine();
                 cwt.WriteLine("public IEnumerator<IOVector> GetEnumerator ()");
@@ -400,13 +393,8 @@ namespace xnbgenerator.Generators
 						else if (ob is valueparam)
 						{
 							valueparam v = ob as valueparam;
-							string vName = "Values";
 
-							if (v.valuelistname != null)
-							{
-								vName = GeneratorUtil.ToCs(v.valuelistname);
-							}
-
+							string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);                     
 							string vType = Generator.TypeToCs(v.valuemasktype);
 
 							if (vType == "uint")
@@ -431,6 +419,7 @@ namespace xnbgenerator.Generators
 						list l = ob as list;
 
 						string lName = GeneratorUtil.ToCs(l.name);
+
 						if (lName == sName)
 						{
 							Console.Error.WriteLine("Warning: list field renamed: " + lName);
@@ -438,34 +427,42 @@ namespace xnbgenerator.Generators
 						}
 
 						string lType = Generator.TypeToCs(l.type);
+
 						if (!sizeParams.ContainsKey(l.name))
 						{
 							Console.Error.WriteLine("Warning: No length given for " + lName);
 							cwt.WriteLine("//FIXME: No length given");
 						}
+						else if (l.type == "CHAR2B" || lType == "sbyte")
+						{
+							cwt.WriteLine("//[MarshalAs (UnmanagedType.LPStr, SizeParamIndex=" + sizeParams[l.name] + ")]");
+						}
 						else
 						{
-							if (l.type == "CHAR2B" || lType == "sbyte")
-								cwt.WriteLine("//[MarshalAs (UnmanagedType.LPStr, SizeParamIndex=" + sizeParams[l.name] + ")]");
-							else
-								cwt.WriteLine("[MarshalAs (UnmanagedType.LPArray, SizeParamIndex=" + sizeParams[l.name] + ")]");
+							cwt.WriteLine("[MarshalAs (UnmanagedType.LPArray, SizeParamIndex=" + sizeParams[l.name] + ")]");
 						}
 
 						if (l.type == "CHAR2B" || lType == "sbyte")
+						{
 							cwt.WriteLine("public " + "string" + " @" + lName + ";");
+						}
 						else
+						{
 							cwt.WriteLine("public " + lType + "[]" + " @" + lName + ";");
+						}
 
 						offset += 4;
 					}
 					else if (ob is valueparam)
 					{
 						valueparam v = ob as valueparam;
+
 						string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);
 						string vType = Generator.TypeToCs(v.valuemasktype);
 
 						cwt.WriteLine("//public ValueList<" + vType + "> @" + vName + ";");
 						cwt.WriteLine("public " + vType + "[] @" + vName + ";");
+
 						offset += 4;
 					}
 				}
@@ -483,22 +480,23 @@ namespace xnbgenerator.Generators
             bool isRequest = sName.EndsWith("RequestData");
             bool isEvent = sName.EndsWith("EventData");
             bool isError = sName.EndsWith("ErrorData");
+
             //FIXME: Rep shouldn't have offsets/inherits
             bool isReply = sName.EndsWith("ReplyData");
 
             bool isStruct = (!isRequest && !isEvent && !isError && !isReply && !sName.EndsWith("RepData"));
 
-
-            if (sName.EndsWith("EventData") || sName.EndsWith("ErrorData"))
-                sizeString = ", Size=" + 28;
+			if (sName.EndsWith("EventData") || sName.EndsWith("ErrorData"))
+			{
+				sizeString = ", Size=" + 28;
+			}
 
             Dictionary<string, int> sizeParams = new Dictionary<string, int>();
 
-            int index = 0, offset = 0;
+            int offset = 0;
 
             if (sItems != null)
-            {
-
+            {            
                 if (isRequest)
                     offset += 4;
 
@@ -512,65 +510,72 @@ namespace xnbgenerator.Generators
 
                 foreach (object ob in sItems)
                 {
-                    //bool isData = (offset == startOffset) && (isReply || (isRequest && !isExtension));
                     bool isData = first && (isReply || (isRequest && !isExtension));
                     first = false;
 
                     if (ob is field)
                     {
                         field f = ob as field;
-                        if (f.name != null)
+
+						if (f.name == null)
+						{
+							continue;
+						}
+
+                        string fName = GeneratorUtil.ToCs(f.name);
+                        if (fName == sName || fName + "Data" == sName)
                         {
-                            string fName = GeneratorUtil.ToCs(f.name);
-                            if (fName == sName || fName + "Data" == sName)
-                            {
-                                Console.Error.WriteLine("Warning: field renamed: " + fName);
-                                fName = "Value";
-                            }
+                            Console.Error.WriteLine("Warning: field renamed: " + fName);
+                            fName = "Value";
+                        }
 
-							string fType = Generator.TypeToCs(f.type);
+						string fType = Generator.TypeToCs(f.type);
 
-                            //in non-extension requests, the data field carries the first element
-                            if (withOffsets)
-                            {
-                                if (isData)
-                                    cwt.WriteLine("[FieldOffset (" + 1 + ")]");
-                                else
-                                {
-                                    cwt.WriteLine("[FieldOffset (" + offset + ")]");
-									offset += Generator.SizeOfType(fType);
-                                }
-                            }
-
-                            if (withOffsets)
-                            {
-                                cwt.WriteLine("public " + fType + " @" + fName + ";");
-                            }
+						//in non-extension requests, the data field carries the first element
+						if (withOffsets)
+						{
+							if (isData)
+							{
+								cwt.WriteLine("[FieldOffset (" + 1 + ")]");
+						    }
                             else
                             {
-                                cwt.WriteLine("public " + fType + " @" + fName);
-                                cwt.WriteLine("{");
-                                cwt.WriteLine("get {");
-                                cwt.WriteLine("return MessageData.@" + fName + ";");
-                                cwt.WriteLine("} set {");
-                                cwt.WriteLine("MessageData.@" + fName + " = value;");
-                                cwt.WriteLine("}");
-                                cwt.WriteLine("}");
+                                cwt.WriteLine("[FieldOffset (" + offset + ")]");
+								offset += Generator.SizeOfType(fType);
                             }
-                            index++;
+                        }
+
+                        if (withOffsets)
+                        {
+                            cwt.WriteLine("public " + fType + " @" + fName + ";");
+                        }
+                        else
+                        {
+                            cwt.WriteLine("public " + fType + " @" + fName);
+                            cwt.WriteLine("{");
+                            cwt.WriteLine("get {");
+                            cwt.WriteLine("return MessageData.@" + fName + ";");
+                            cwt.WriteLine("} set {");
+                            cwt.WriteLine("MessageData.@" + fName + " = value;");
+                            cwt.WriteLine("}");
+                            cwt.WriteLine("}");
                         }
                     }
                     else if (ob is pad)
                     {
-                        if (!withOffsets)
-                            continue;
+						if (!withOffsets)
+						{
+							continue;
+						}
 
                         pad p = ob as pad;
 
                         int padding = Int32.Parse(p.bytes);
 
-                        if (isData)
-                            padding--;
+						if (isData)
+						{
+							padding--;
+						}
 
                         if (padding > 0)
                         {
