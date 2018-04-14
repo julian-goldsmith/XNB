@@ -19,12 +19,6 @@ namespace xnbgenerator
 
             List<string> srcFiles = options.Parse(args);
 
-            if (string.IsNullOrEmpty(reference))
-            {
-                Console.WriteLine("Must have reference");
-                return 1;
-            }
-
             if (string.IsNullOrEmpty(outName))
             {
                 Console.WriteLine("Must have output name");

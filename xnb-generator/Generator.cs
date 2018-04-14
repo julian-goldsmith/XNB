@@ -10,11 +10,6 @@ public class Generator
 	static bool isExtension;
 	static string extName;
 
-	//FIXME: refactor name
-	static CodeWriter cw;
-	static CodeWriter cwt;
-	static CodeWriter cwi;
-
 	public static void Generate (string fname, string name)
 	{
 		StreamReader sr = new StreamReader (fname);
@@ -24,9 +19,9 @@ public class Generator
 		extName = xcb.extensionxname == null ? "" : xcb.extensionxname;
 		isExtension = extName != "";
 
-		cw = new CodeWriter (name + ".cs");
-		cwt = new CodeWriter (name + "Types.cs");
-		cwi = new CodeWriter (name + "Iface.cs");
+		CodeWriter cw = new CodeWriter (name + ".cs");
+		CodeWriter cwt = new CodeWriter (name + "Types.cs");
+		CodeWriter cwi = new CodeWriter (name + "Iface.cs");
 
 		cw.WriteLine ("using System;", cwt, cwi);
 		cw.WriteLine ("using System.Collections;", cwt);
@@ -59,24 +54,24 @@ public class Generator
 			if (o == null)
 				continue;
 			else if (o is @xidtype)
-				GenXidType (o as @xidtype);
+				GenXidType (cwt, o as @xidtype);
 			else if (o is @errorcopy)
-				GenErrorCopy (o as @errorcopy);
+				GenErrorCopy (cwt, o as @errorcopy);
 			else if (o is @eventcopy)
-				GenEventCopy (o as @eventcopy);
+				GenEventCopy (cwt, o as @eventcopy);
 			else if (o is @struct)
-				GenStruct (o as @struct);
+				GenStruct (cwt, o as @struct);
 			else if (o is @union)
-				GenUnion (o as @union);
+				GenUnion (cwt, o as @union);
 			else if (o is @enum)
-				GenEnum (o as @enum);
+				GenEnum (cwt, o as @enum);
 			else if (o is @event)
-				GenEvent (o as @event, name);
+				GenEvent (cwt, cw, o as @event, name);
 			else if (o is @request) {
-				GenRequest (o as @request, name);
-				GenFunction (o as @request, name);
+				GenRequest (cwt, o as @request, name);
+				GenFunction (cw, cwi, o as @request, name);
 			} else if (o is @error)
-				GenError (o as @error, name);
+				GenError (cwt, o as @error, name);
 		}
 
 		cwt.WriteLine ("#pragma warning restore 0169, 0414");
@@ -90,7 +85,7 @@ public class Generator
 		cwi.Close ();
 	}
 
-	static void GenXidType (@xidtype x)
+	static void GenXidType (CodeWriter cwt, @xidtype x)
 	{
 		if (x.name == null)
 			return;
@@ -137,46 +132,46 @@ public class Generator
 		cwt.WriteLine ();
 	}
 
-	static void GenEventCopy (@eventcopy e)
+	static void GenEventCopy (CodeWriter cwt, @eventcopy e)
 	{
 		if (e.name == null)
 			return;
 
 		cwt.WriteLine ("[Event (" + e.number + ")]");
-		GenClass (NewTypeToCs (ToCs (e.name) + "Event"), null, " : " + ToCs (e.@ref) + "Event");
+		GenClass (cwt, NewTypeToCs (ToCs (e.name) + "Event"), null, " : " + ToCs (e.@ref) + "Event");
 	}
 
-	static void GenErrorCopy (@errorcopy e)
+	static void GenErrorCopy (CodeWriter cwt, @errorcopy e)
 	{
 		if (e.name == null)
 			return;
 
 		cwt.WriteLine ("[Error (" + e.number + ")]");
-		GenClass (NewTypeToCs (ToCs (e.name) + "Error"), null, " : " + ToCs (e.@ref) + "Error");
+		GenClass (cwt, NewTypeToCs (ToCs (e.name) + "Error"), null, " : " + ToCs (e.@ref) + "Error");
 	}
 
-	static void GenError (@error e, string name)
+	static void GenError (CodeWriter cwt, @error e, string name)
 	{
 		if (e.name == null)
 			return;
 
 		cwt.WriteLine ("[Error (" + e.number + ")]");
-		GenClass (NewTypeToCs (TypeToCs (e.name) + "Error"), e.field);
+		GenClass (cwt, NewTypeToCs (TypeToCs (e.name) + "Error"), e.field);
 	}
 
-	static void GenEvent (@event e, string name)
+	static void GenEvent (CodeWriter cwt, CodeWriter cw, @event e, string name)
 	{
 		if (e.name == null)
 			return;
 
 		cwt.WriteLine ("[Event (" + e.number + ")]");
-		GenClass (NewTypeToCs (ToCs (e.name) + "Event"), e.Items, " : " + "EventArgs");
+		GenClass (cwt, NewTypeToCs (ToCs (e.name) + "Event"), e.Items, " : " + "EventArgs");
 		
 		cw.WriteLine ("public event " + "EventHandler<" + (ToCs (e.name) + "Event") + "> " + (ToCs (e.name) + "Event") + ";");
 		cw.WriteLine ();
 	}
 
-	static void GenRequest (@request r, string name)
+	static void GenRequest (CodeWriter cwt, @request r, string name)
 	{
 		if (r.name == null)
 			return;
@@ -184,15 +179,15 @@ public class Generator
 		string inherits = isExtension ? "ExtensionRequest" : "Request";
 
 		cwt.WriteLine ("[Request (" + r.opcode + ")]");
-		GenClass (NewTypeToCs (ToCs (r.name) + "Request"), r.Items);
+		GenClass (cwt, NewTypeToCs (ToCs (r.name) + "Request"), r.Items);
 
 		if (r.reply != null) {
 			cwt.WriteLine ("[Reply (" + r.opcode + ")]");
-			GenClass (NewTypeToCs (ToCs (r.name) + "Reply"), r.reply.Items);
+			GenClass (cwt, NewTypeToCs (ToCs (r.name) + "Reply"), r.reply.Items);
 		}
 	}
 
-	static void GenFunction (@request r, string name)
+	static void GenFunction (CodeWriter cw, CodeWriter cwi, @request r, string name)
 	{
 		if (r.name == null)
 			return;
@@ -293,7 +288,7 @@ public class Generator
 		cw.WriteLine ();
 	}
     
-	static void GenEnum (@enum e)
+	static void GenEnum (CodeWriter cwt, @enum e)
 	{
 		if (e.name == null)
 			return;
@@ -310,13 +305,13 @@ public class Generator
 		cwt.WriteLine ();
 	}
 
-	static void GenUnion (@union u)
+	static void GenUnion (CodeWriter cwt, @union u)
 	{
 		return;
 	}
 
 
-	static void GenStruct (@struct s)
+	static void GenStruct (CodeWriter cwt, @struct s)
 	{
 		if (s.name == null)
 			return;
@@ -335,13 +330,13 @@ public class Generator
 			basic  = false;
 		if (s.name == "HOST")
 			basic  = false;
-		GenClass (NewTypeToCs (s.name), s.Items);
+		GenClass (cwt, NewTypeToCs (s.name), s.Items);
 		basic = false;
 	}
 
-	static void GenClass (string sName, object[] sItems)
+	static void GenClass (CodeWriter cwt, string sName, object[] sItems)
 	{
-		GenClass (sName, sItems, "");
+		GenClass (cwt, sName, sItems, "");
 	}
 
 	//FIXME: needs to know about sizes of known structs
@@ -370,7 +365,7 @@ public class Generator
 	}
 
 	static bool basic = false;
-	static void GenClass (string sName, object[] sItems, string suffix)
+	static void GenClass (CodeWriter cwt, string sName, object[] sItems, string suffix)
 	{
 		Dictionary<string,int> sizeParams = new Dictionary<string,int> ();
   
@@ -403,7 +398,7 @@ public class Generator
     			cwt.WriteLine ("public ExtensionRequest ExtHeader;");
     		}
 
-    		GenClassData (sName + "Data", sItems, "", true);
+    		GenClassData (cwt, sName + "Data", sItems, "", true);
     		cwt.WriteLine ("}");
     		cwt.WriteLine ();
 		}
@@ -427,7 +422,7 @@ public class Generator
 			cwt.WriteLine ("public " + sName + "Data" + " MessageData;");
 		}
 		
-		int offset = GenClassData (sName, sItems, "", basicStruct);
+		int offset = GenClassData (cwt, sName, sItems, "", basicStruct);
 
 		if (!basicStruct) {
 			cwt.WriteLine ("public int Read (IntPtr ptr)");
@@ -561,7 +556,7 @@ public class Generator
 		cwt.WriteLine ();
 	}
 
-	static int GenClassData (string sName, object[] sItems, string suffix, bool withOffsets)
+	static int GenClassData (CodeWriter cwt, string sName, object[] sItems, string suffix, bool withOffsets)
 	{
 		string sizeString = "";
 
@@ -577,20 +572,6 @@ public class Generator
 
 		if (sName.EndsWith ("EventData") || sName.EndsWith ("ErrorData"))
 			sizeString = ", Size=" + 28;
-
-		//FIXME: incorrect hack
-		//if (sName.EndsWith ("Reply"))
-		//	sizeString = ", Size=" + 32;
-
-		//sName = NewTypeToCs (sName);
-		//FIXME: figure out actual size first
-
-		//if (isStruct)
-			//cwt.WriteLine ("public struct @" + sName);
-		//else
-		//	cwt.WriteLine ("public class @" + sName + suffix);
-
-		//cwt.WriteLine ("{");
 
 		Dictionary<string,int> sizeParams = new Dictionary<string,int> ();
 		
