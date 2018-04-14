@@ -7,38 +7,33 @@ using Mono.Options;
 
 using Schemas;
 
-public class XnbGenOptions : Options
-{
-	public XnbGenOptions (string[] args) : base (args) {}
-
-	[Option("Reference", 'r', "ref")]
-		//public string[] References;
-		public string Reference;
-
-	[Option("Output name", 'o', "out")]
-		public string OutName;
-
-	//[Option("Xcb spec xml input", 'r', "ref")]
-	//public string XcbSpec;
-}
-
 public class Driver
 {
-	public static int Main (string[] args)
+	public static int Main(string[] args)
 	{
-		XnbGenOptions opts = new XnbGenOptions (args);
-		string[] srcFiles = opts.RemainingArguments;
+		List<string> srcFiles;//opts.RemainingArguments;
 
+		string reference = null;
+		string outName = null;
+
+		var options = new OptionSet
+		{
+			{ "r|ref", "Reference", r => reference = r },
+			{ "o|out", "Output name", o => outName = o },
+		};
+
+		srcFiles = options.Parse(args);
+        
 		LoadTypeMap ("TypeMap");
 		
 		//foreach (string srcRef in opts.References)
 		//	LoadTypeMap (srcRef + ".TypeMap");
 
-		LoadTypeMap (opts.Reference + "TypeMap");
+		LoadTypeMap (reference + "TypeMap");
 
 		foreach (string src in srcFiles) {
-			Generate (src, opts.OutName);
-			SaveTypeMap (opts.OutName + "TypeMap");
+			Generate (src, outName);
+			SaveTypeMap (outName + "TypeMap");
 		}
 
 		return 0;
