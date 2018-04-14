@@ -21,16 +21,15 @@ public class Generator
 
 		CodeWriter cw = new CodeWriter (name + ".cs");
 		CodeWriter cwt = new CodeWriter (name + "Types.cs");
-		CodeWriter cwi = new CodeWriter (name + "Iface.cs");
 
-		cw.WriteLine ("using System;", cwt, cwi);
+		cw.WriteLine ("using System;", cwt);
 		cw.WriteLine ("using System.Collections;", cwt);
 		cw.WriteLine ("using System.Collections.Generic;", cwt);
 		cw.WriteLine ("using System.Runtime.InteropServices;", cwt);
 		cw.WriteLine ("using Mono.Unix;", cwt);
 		cw.WriteLine ("using Xnb.Protocol." + "Xnb" + ";", cwt);
 		cw.WriteLine ("using Xnb.Protocol." + "XProto" + ";", cwt);
-		cw.WriteLine ("", cwt, cwi);
+		cw.WriteLine ("", cwt);
 
 		cw.WriteLine ("namespace Xnb");
 		cwt.WriteLine ("namespace Xnb.Protocol." + name);
@@ -38,8 +37,7 @@ public class Generator
 		cw.WriteLine ("{", cwt);
 		cw.WriteLine ("using Protocol." + name + ";");
 		cw.WriteLine ("public class " + name + " : Extension");
-		cwi.WriteLine ("public interface I" + name);
-		cw.WriteLine ("{", cwi);
+		cw.WriteLine ("{");
 		cw.WriteLine ("public override string XName");
 		cw.WriteLine ("{");
 		cw.WriteLine ("get {");
@@ -69,20 +67,18 @@ public class Generator
 				GenEvent (cwt, cw, o as @event, name);
 			else if (o is @request) {
 				GenRequest (cwt, o as @request, name);
-				GenFunction (cw, cwi, o as @request, name);
+				GenFunction (cw, o as @request, name);
 			} else if (o is @error)
 				GenError (cwt, o as @error, name);
 		}
 
 		cwt.WriteLine ("#pragma warning restore 0169, 0414");
-
-		cwi.WriteLine ("}");
+  
 		cw.WriteLine ("}");
 		cw.WriteLine ("}", cwt);
 
 		cw.Close ();
 		cwt.Close ();
-		cwi.Close ();
 	}
 
 	static void GenXidType (CodeWriter cwt, @xidtype x)
@@ -187,7 +183,7 @@ public class Generator
 		}
 	}
 
-	static void GenFunction (CodeWriter cw, CodeWriter cwi, @request r, string name)
+	static void GenFunction (CodeWriter cw, @request r, string name)
 	{
 		if (r.name == null)
 			return;
@@ -204,9 +200,6 @@ public class Generator
 					if (f.name == null)
 						continue;
 
-					//if (f.name.EndsWith ("_len"))
-					//		continue;
-
 					parms += ", " + TypeToCs (f.type) + " @" + ToParm (ToCs (f.name));
 					parmList1.Add (ToCs (f.name));
 				} else if (ob is list) {
@@ -214,10 +207,10 @@ public class Generator
 					if (l.name == null)
 						continue;
 					if (l.type == "char") {
-						parms += ", " + "string" + " @" + ToParm (ToCs (l.name));
+						parms += ", string @" + ToParm (ToCs (l.name));
 						parmList2.Add (ToCs (l.name));
 					} else if (l.type == "CARD32") {
-						parms += ", " + "uint[]" + " @" + ToParm (ToCs (l.name));
+						parms += ", uint[] @" + ToParm (ToCs (l.name));
 						parmList2.Add (ToCs (l.name));
 					}
 				} else if (ob is valueparam) {
@@ -230,7 +223,7 @@ public class Generator
 						string vType = TypeToCs (v.valuemasktype);
 
 						if (vType == "uint") {
-							parms += ", " + "uint[]" + " @" + ToParm (vName);
+							parms += ", uint[] @" + ToParm (vName);
 							parmList2.Add (vName);
 						}
 				}
@@ -240,18 +233,21 @@ public class Generator
 		}
   
 		if (r.reply != null)
-			cw.WriteLine ("public " + "Cookie<" + ToCs (r.name) + "Reply" + ">" + " " + ToCs (r.name) + " (" + parms + ")", cwi, ";");
+			cw.WriteLine ("public Cookie<" + ToCs (r.name) + "Reply> " + ToCs (r.name) + " (" + parms + ");");
 		else
-			cw.WriteLine ("public " + "void" + " " + ToCs (r.name) + " (" + parms + ")", cwi, ";");
+			cw.WriteLine ("public void " + ToCs (r.name) + " (" + parms + ");");
 
 		cw.WriteLine ("{");
         
 		cw.WriteLine ("" + ToCs (r.name) + "Request req = new " + ToCs (r.name) + "Request ();");
 
-		if (isExtension) {
+		if (isExtension)
+		{
 			cw.WriteLine ("req.MessageData.ExtHeader.MajorOpcode = GlobalId;");
 			cw.WriteLine ("req.MessageData.ExtHeader.MinorOpcode = " + r.opcode + ";");
-		} else {
+		}
+		else
+		{
 			cw.WriteLine ("req.MessageData.Header.Opcode = " + r.opcode + ";");
 		}
 		cw.WriteLine ();
@@ -263,8 +259,11 @@ public class Generator
 			cw.WriteLine ("req.@" + par + " = @" + ToParm (par) + ";");
 
 		if (r.Items != null)
-			foreach (object ob in r.Items) {
-				if (ob is list) {
+		{
+			foreach (object ob in r.Items)
+			{
+				if (ob is list)
+				{
 					list l = ob as list;
 					if (l.name == null)
 						continue;
@@ -274,12 +273,14 @@ public class Generator
 					cw.WriteLine ("req.@" + ToCs (l.name) + " = @" + ToParm (ToCs (l.name)) + ";");
 				}
 			}
+        }
 
 		cw.WriteLine ();
 		cw.WriteLine ("c.xw.Send (req);");
 		cw.WriteLine ();
 		
-		if (r.reply != null) {
+		if (r.reply != null)
+		{
 			cw.WriteLine ();
 			cw.WriteLine ("return c.xrr.GenerateCookie" + "<" + ToCs (r.name) + "Reply" + ">" + " ();");
 		}
@@ -681,58 +682,6 @@ public class Generator
 
 		Console.Error.WriteLine ("Error: Size not known for type: " + t);
 		return 0;
-	}
-
-	static string Studlify (string name)
-	{
-		string r = "";
-
-		foreach (string s in name.Split ('_'))
-			r += Char.ToUpper (s[0]) + s.Substring (1);
-
-		return r;
-	}
-
-	//TODO: numbers etc? Write tests
-	//GetXidRange GetXIDRange GetX, numbers etc.
-	static string Destudlify (string s)
-	{
-		string o = "";
-
-		bool xC = true;
-		bool Cx = false;
-
-		for (int i = 0 ; i != s.Length ; i++) {
-
-			if (i != 0)
-				xC = Char.IsLower (s[i-1]);
-
-			if (i != s.Length - 1)
-				Cx = Char.IsLower (s[i+1]);
-
-			if (i == 0) {
-				o += Char.ToLower (s[i]);
-				continue;
-			}
-
-			if (Char.IsUpper (s[i]))
-				if (Cx || xC && !Cx)
-					o += '_';
-
-			o += Char.ToLower (s[i]);
-		}
-
-		return o;
-	}
-
-	static string ToParm (string name)
-	{
-		return name.Substring (0, 1).ToLower () + name.Substring (1, name.Length - 1);
-	}
-
-	static string ToCs (string name)
-	{
-		return Studlify (Destudlify (name));
 	}
 
 	static string TypeToCs (string name)
