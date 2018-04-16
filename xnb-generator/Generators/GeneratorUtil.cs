@@ -14,8 +14,7 @@ namespace xnbgenerator.Generators
             bool Cx = false;
 
             for (int i = 0; i != s.Length; i++)
-            {
-
+            {            
                 if (i != 0)
                     xC = Char.IsLower(s[i - 1]);
 
@@ -40,7 +39,8 @@ namespace xnbgenerator.Generators
 
         public static string ToParm(string name)
         {
-            return name.Substring(0, 1).ToLower() + name.Substring(1, name.Length - 1);
+            return name.Substring(0, 1).ToLower() + 
+			       name.Substring(1, name.Length - 1);
         }
 
         public static string ToCs(string name)

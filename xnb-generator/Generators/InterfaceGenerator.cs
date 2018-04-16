@@ -52,8 +52,10 @@ namespace xnbgenerator.Generators
                     if (ob is field)
                     {
                         field f = ob as field;
-                        if (f.name == null)
-                            continue;
+						if (f.name == null)
+						{
+							continue;
+						}
                         
 						parameters.Add(Parameter(Identifier(f.name)).WithType(IdentifierName(f.type)));
                     }
@@ -87,7 +89,9 @@ namespace xnbgenerator.Generators
                     {
                         valueparam v = ob as valueparam;
 
-						string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToParm(GeneratorUtil.ToCs(v.valuelistname));
+						string vName = (v.valuelistname == null) 
+							? "Values" 
+							: GeneratorUtil.ToParm(GeneratorUtil.ToCs(v.valuelistname));
 						string vType = Generator.TypeToCs(v.valuemasktype);
 
                         if (vType == "uint")
