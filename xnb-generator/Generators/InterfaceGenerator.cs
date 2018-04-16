@@ -95,7 +95,7 @@ namespace xnbgenerator.Generators
 						string vType = Generator.TypeToCs(v.valuemasktype);
 
                         if (vType == "uint")
-                        {                     
+                        {
 							parameters.Add(Parameter(Identifier(vName)).
                                            WithType(ArrayType(PredefinedType(Token(SyntaxKind.UIntKeyword))).
                                                     WithRankSpecifiers(SingletonList(

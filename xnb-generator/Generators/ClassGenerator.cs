@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.IO;
 using System.Collections.Generic;
 
 using Microsoft.CodeAnalysis;
@@ -20,8 +21,6 @@ namespace xnbgenerator.Generators
 			isExtension = !string.IsNullOrEmpty(extName);
 
             List<MemberDeclarationSyntax> classMembers = new List<MemberDeclarationSyntax>();
-
-            CodeWriter cw = new CodeWriter(name + ".cs");
             
 			AccessorDeclarationSyntax xnameGetter =
 				AccessorDeclaration(SyntaxKind.GetAccessorDeclaration,
@@ -32,6 +31,7 @@ namespace xnbgenerator.Generators
 									TokenList(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.OverrideKeyword)),
 				                    PredefinedType(Token(SyntaxKind.StringKeyword)),
 				                    null, Identifier("XName"), AccessorList(SingletonList(xnameGetter)));
+			classMembers.Add(xnameProperty);
             
 			foreach (object o in xcb.Items)
 			{
@@ -41,7 +41,7 @@ namespace xnbgenerator.Generators
 			    }
                 else if (o is @request)
                 {
-					classMembers.Add(GenFunction(cw, o as @request));
+					classMembers.Add(GenFunction(o as @request));
                 }
 			}
 
@@ -63,10 +63,19 @@ namespace xnbgenerator.Generators
 			NamespaceDeclarationSyntax ns = 
 				NamespaceDeclaration(IdentifierName("XNB"), 
                                      List<ExternAliasDirectiveSyntax>(), 
-                                     List(usings), 
+				                     List<UsingDirectiveSyntax>(), 
 				                     SingletonList<MemberDeclarationSyntax>(cd));
 
-            cw.Close();
+            CompilationUnitSyntax cu = CompilationUnit().
+			    WithUsings(List(usings)).
+                WithMembers(SingletonList<MemberDeclarationSyntax>(ns)).
+                NormalizeWhitespace();
+
+            using (FileStream fs = new FileStream(name + ".cs", FileMode.Create))
+            using (TextWriter tw = new StreamWriter(fs))
+            {
+                cu.WriteTo(tw);
+            }
         }
 
 		MemberDeclarationSyntax GenEvent(@event e)
@@ -78,81 +87,44 @@ namespace xnbgenerator.Generators
 
 			string name = GeneratorUtil.ToCs(e.name);
 
-			return EventDeclaration(GenericName(Identifier("EventHandler"),
-										 TypeArgumentList(
-											 SingletonSeparatedList<TypeSyntax>(
-												 IdentifierName(name + "Event")))),
-							        name + "Event").
+			return EventFieldDeclaration(
+				VariableDeclaration(
+                    GenericName(Identifier("EventHandler"),
+						 TypeArgumentList(
+							 SingletonSeparatedList<TypeSyntax>(
+								 IdentifierName(name + "Event")))),
+					SingletonSeparatedList(VariableDeclarator(Identifier(name + "Event"))))).
                 WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)));
         }
 
-		MemberDeclarationSyntax GenFunction(CodeWriter cw, @request r)
+		MemberDeclarationSyntax GenFunction(@request r)
         {
+			// TODO: we should be able to share a lot of this with InterfaceGenerator
             if (r.name == null)
 			{
                 throw new Exception("Can't have null name");            // FIXME: handle this
 			}
 
-            //TODO: share code with struct
-			List<Tuple<string, string>> messageParams = new List<Tuple<string, string>>();      // type, name
-            List<Tuple<string, string>> listParams = new List<Tuple<string, string>>();         // type, name
+            //TODO: share code with struct         
+			List<ParameterSyntax> methodParameters = new List<ParameterSyntax>();
+			List<StatementSyntax> methodBody = new List<StatementSyntax>();
+
+			//cw.WriteLine(GeneratorUtil.ToCs(r.name) + "Request req = new " + GeneratorUtil.ToCs(r.name) + "Request ();");
+
+			var requestType = IdentifierName(GeneratorUtil.ToCs(r.name) + "Request");
+
+            methodBody.Add(
+				LocalDeclarationStatement(
+				    VariableDeclaration(
+						requestType,
+                        SingletonSeparatedList(
+                            VariableDeclarator(Identifier("req"),
+		                                       null,
+                                               EqualsValueClause(
+                                                   ObjectCreationExpression(
+									                   requestType).
+								                   WithArgumentList(ArgumentList())))))));
             
-            if (r.Items != null)
-            {               
-                foreach (object ob in r.Items)
-                {
-                    if (ob is field)
-                    {
-                        field f = ob as field;
-                        if (f.name == null)
-						{
-							continue;
-                        }
-                        
-						messageParams.Add(Tuple.Create(Generator.TypeToCs(f.type), GeneratorUtil.ToCs(f.name)));
-                    }
-                    else if (ob is list)
-                    {
-                        list l = ob as list;
-
-                        if (l.name == null)
-						{
-							continue;
-                        }
-                        
-                        if (l.type == "char")
-                        {
-							listParams.Add(Tuple.Create("string", GeneratorUtil.ToCs(l.name)));
-                        }
-                        else if (l.type == "CARD32")
-						{
-                            listParams.Add(Tuple.Create("uint[]", GeneratorUtil.ToCs(l.name)));
-                        }
-                    }
-                    else if (ob is valueparam)
-                    {
-                        valueparam v = ob as valueparam;
-						string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);                     
-						string vType = Generator.TypeToCs(v.valuemasktype);
-
-                        if (vType == "uint")
-                        {
-							listParams.Add(Tuple.Create("uint[]", vName));
-                        }
-                    }
-                }
-            }
-			// end foreach
-            
-
-			cw.WriteLine(GeneratorUtil.ToCs(r.name) + "Request req = new " + GeneratorUtil.ToCs(r.name) + "Request ();");
-
-			var vardec = VariableDeclaration(IdentifierName("Request"), 
-			                                 SingletonSeparatedList(
-				                                 VariableDeclarator(Identifier("req"), BracketedArgumentList(), 
-				                                                    EqualsValueClause(
-					                                                    ObjectCreationExpression(
-						                                                    IdentifierName("Request"))))));
 
 			var messageDataAccess =
 				MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
@@ -160,97 +132,138 @@ namespace xnbgenerator.Generators
 									   IdentifierName("MessageData"));
 
             if (isExtension)
-            {
-                //cw.WriteLine("req.MessageData.ExtHeader.MajorOpcode = GlobalId;");
-                //cw.WriteLine("req.MessageData.ExtHeader.MinorOpcode = " + r.opcode + ";");
-
+            {            
 				var extHeaderAccess = MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
 				                                             messageDataAccess,
 															 IdentifierName("ExtHeader"));
 
-				var majorOpcodeSet = ExpressionStatement(
+				methodBody.Add(ExpressionStatement(
 					AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
 					                     MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
 						                                        extHeaderAccess,
 					                                            IdentifierName("MajorOpcode")),
-					                     IdentifierName("GlobalId")));
+					                     IdentifierName("GlobalId"))));
 
-                var minorOpcodeSet = ExpressionStatement(
+                methodBody.Add(ExpressionStatement(
                     AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
                                          MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
 					                                            extHeaderAccess,
                                                                 IdentifierName("MajorOpcode")),
-					                     LiteralExpression(SyntaxKind.NumericLiteralToken, Literal(int.Parse(r.opcode)))));
+					                     LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(int.Parse(r.opcode))))));
             }
             else
 			{            
-				//cw.WriteLine("req.MessageData.Header.Opcode = " + r.opcode + ";");
-
                 var headerAccess = MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
                                                           messageDataAccess,
                                                           IdentifierName("Header"));
 
-                var opcodeSet = ExpressionStatement(
+                methodBody.Add(ExpressionStatement(
                     AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
                                          MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
                                                                 headerAccess,
                                                                 IdentifierName("Opcode")),
-                                         LiteralExpression(SyntaxKind.NumericLiteralToken, Literal(int.Parse(r.opcode)))));
-            }
-
-			foreach (var par in messageParams)
-			{
-				//cw.WriteLine("req.MessageData.@" + par + " = @" + GeneratorUtil.ToParm(par) + ";");
-
-				var messageParamSet = ExpressionStatement(
-                    AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
-                                         MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-					                                            messageDataAccess,
-					                                            IdentifierName("@" + par.Item2)),
-					                     IdentifierName("@" + GeneratorUtil.ToParm(par.Item2))));
-            }
-
-			foreach (var par in listParams)
-			{
-				//cw.WriteLine("req.@" + par + " = @" + GeneratorUtil.ToParm(par) + ";");
-
-                var listParamSet = ExpressionStatement(
-                    AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
-                                         MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-					                                            IdentifierName("ref"),
-					                                            IdentifierName("@" + par.Item2)),
-                                         IdentifierName("@" + GeneratorUtil.ToParm(par.Item2))));
-            }
+					                     LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(int.Parse(r.opcode))))));
+			}
 
             if (r.Items != null)
             {
                 foreach (object ob in r.Items)
                 {
-                    if (ob is list)
+                    if (ob is field)
+                    {
+                        field f = ob as field;
+
+                        if (f.name == null)
+                        {
+                            continue;
+						}
+
+                        string paramName = "@" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(f.name));
+
+						methodParameters.Add(Parameter(Identifier(paramName)).
+						                     WithType(IdentifierName(Generator.TypeToCs(f.type))));
+
+                        methodBody.Add(ExpressionStatement(
+                            AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
+                                                 MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                                                                        messageDataAccess,
+							                                            IdentifierName("@" + 
+					                                                        GeneratorUtil.ToCs(f.name))),
+							                     IdentifierName(paramName))));
+                    }
+                    else if (ob is list)
                     {
                         list l = ob as list;
 
-						if (l.name == null || l.type != "char")
-						{
-							continue;
+                        if (l.name == null)
+                        {
+                            continue;
                         }
 
-						//cw.WriteLine("req.@" + GeneratorUtil.ToCs(l.name) + " = @" + 
-						//             GeneratorUtil.ToParm(GeneratorUtil.ToCs(l.name)) + ";");
-                        
-                        var listParamSet = ExpressionStatement(
-                                    AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
-                                                         MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                                                                                IdentifierName("ref"),
-                                                                                IdentifierName("@" + l.name)),
-							                             IdentifierName("@" + GeneratorUtil.ToParm(l.name))));
+						string paramName = "@" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(l.name));
+
+						TypeSyntax paramType;
+
+                        if (l.type == "char")
+                        {
+							paramType = PredefinedType(Token(SyntaxKind.StringKeyword));
+                        }
+                        else if (l.type == "CARD32")
+                        {
+							paramType = ArrayType(PredefinedType(Token(SyntaxKind.UIntKeyword))).
+                                        WithRankSpecifiers(SingletonList(
+                                            ArrayRankSpecifier(
+                                                SingletonSeparatedList<ExpressionSyntax>(
+                                                    OmittedArraySizeExpression()))));
+                        }
+						else
+						{
+							// FIXME: handle these
+							continue;
+						}
+
+						methodParameters.Add(Parameter(Identifier(paramName)).
+						                     WithType(paramType));
+
+                        methodBody.Add(ExpressionStatement(
+                            AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
+                                                 MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                                                                        IdentifierName("req"),
+                                                                        IdentifierName("@" + 
+							                                                GeneratorUtil.ToCs(l.name))),
+							                     IdentifierName(paramName))));
+                    }
+                    else if (ob is valueparam)
+                    {
+                        valueparam v = ob as valueparam;
+                        string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);
+                        string vType = Generator.TypeToCs(v.valuemasktype);
+
+                        string paramName = "@" + GeneratorUtil.ToParm(vName);
+
+                        if (vType == "uint")
+						{
+							methodParameters.Add(Parameter(Identifier(paramName)).
+                                           WithType(ArrayType(PredefinedType(Token(SyntaxKind.UIntKeyword))).
+                                                    WithRankSpecifiers(SingletonList(
+                                                        ArrayRankSpecifier(
+                                                            SingletonSeparatedList<ExpressionSyntax>(
+                                                                OmittedArraySizeExpression()))))));
+							
+                            methodBody.Add(ExpressionStatement(
+                                AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
+                                                     MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                                                                            IdentifierName("req"),
+                                                                            IdentifierName("@" + vName)),
+								                     IdentifierName(paramName))));
+                        }
                     }
                 }
             }
    
             //cw.WriteLine("c.xw.Send (req);");
 
-			var sendInvoke = ExpressionStatement(
+			methodBody.Add(ExpressionStatement(
 				InvocationExpression(
 					MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
 										   MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
@@ -258,7 +271,7 @@ namespace xnbgenerator.Generators
 																  IdentifierName("xw")),
 										   IdentifierName("Send"))).
 				WithArgumentList(ArgumentList(
-					SingletonSeparatedList(Argument(IdentifierName("req"))))));
+					SingletonSeparatedList(Argument(IdentifierName("req")))))));
 
             if (r.reply != null)
             {
@@ -269,7 +282,7 @@ namespace xnbgenerator.Generators
 										   IdentifierName("c"),
 										   IdentifierName("xrr"));
 
-				var returnStatement =
+				methodBody.Add(
 					ReturnStatement(
 						InvocationExpression(
 							MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
@@ -279,14 +292,14 @@ namespace xnbgenerator.Generators
 								                       TypeArgumentList(
 									                       SingletonSeparatedList<TypeSyntax>(
 										                       IdentifierName(
-											                       GeneratorUtil.ToCs(r.name) + "Reply")))))));
+											                       GeneratorUtil.ToCs(r.name) + "Reply"))))))));
             }
             
 
             if (r.reply != null)
             {
-                cw.WriteLine("public Cookie<" + GeneratorUtil.ToCs(r.name) + "Reply> " + GeneratorUtil.ToCs(r.name) +
-                             " (" + parms + ");");
+                //cw.WriteLine("public Cookie<" + GeneratorUtil.ToCs(r.name) + "Reply> " + GeneratorUtil.ToCs(r.name) +
+                //             " (" + parms + ");");
 
 				return MethodDeclaration(
 					GenericName("Cookie").
@@ -296,15 +309,20 @@ namespace xnbgenerator.Generators
 								IdentifierName(GeneratorUtil.ToCs(r.name) + "Reply")))),
 					GeneratorUtil.ToCs(r.name)).
 					WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword))).
-					WithParameterList(ParameterList(SeparatedList<ParameterSyntax>())).     // FIXME
-				    WithBody(Block());                                                      // FIXME
+					WithParameterList(ParameterList(SeparatedList(methodParameters))).
+				    WithBody(Block(methodBody));
             }
             else
             {
-                cw.WriteLine("public void " + GeneratorUtil.ToCs(r.name) + " (" + parms + ");");
-            }
+				//cw.WriteLine("public void " + GeneratorUtil.ToCs(r.name) + " (" + parms + ");");
 
-            throw new NotImplementedException();
+                return MethodDeclaration(
+					PredefinedType(Token(SyntaxKind.VoidKeyword)),
+                    GeneratorUtil.ToCs(r.name)).
+                    WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword))).
+                    WithParameterList(ParameterList(SeparatedList(methodParameters))).
+                    WithBody(Block(methodBody));
+            }
         }         
     }
 }
