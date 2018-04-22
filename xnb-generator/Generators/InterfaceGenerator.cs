@@ -9,11 +9,19 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 using Schemas;
+using xnbgenerator.Generators.Types;
 
 namespace xnbgenerator.Generators
 {
     public class InterfaceGenerator
     {
+		public TypeMap typeMap;
+
+		public InterfaceGenerator(TypeMap _typeMap)
+		{
+			typeMap = _typeMap;
+		}
+
 		public void Generate(xcb xcb, string name)
 		{
 			InterfaceDeclarationSyntax ids = InterfaceDeclaration("I" + name);
@@ -57,7 +65,7 @@ namespace xnbgenerator.Generators
 							continue;
 						}
                         
-						parameters.Add(Parameter(Identifier(f.name)).WithType(IdentifierName(f.type)));
+						parameters.Add(Parameter(Identifier("@" + f.name)).WithType(IdentifierName(f.type)));
                     }
                     else if (ob is list)
                     {
@@ -91,8 +99,8 @@ namespace xnbgenerator.Generators
 
 						string vName = (v.valuelistname == null) 
 							? "Values" 
-							: GeneratorUtil.ToParm(GeneratorUtil.ToCs(v.valuelistname));
-						string vType = Generator.TypeToCs(v.valuemasktype);
+							: "@" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(v.valuelistname));
+						string vType = typeMap.TypeToCs(v.valuemasktype);
 
                         if (vType == "uint")
                         {

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Schemas;
+using xnbgenerator.Generators.Types;
 
 namespace xnbgenerator.Generators
 {
@@ -8,6 +9,13 @@ namespace xnbgenerator.Generators
 	{
 		bool isExtension;
         bool basic = false;
+
+		private TypeMap typeMap;
+
+		public TypesGenerator(TypeMap _typeMap)
+		{
+			typeMap = _typeMap;
+		}
 
 		public void Generate(xcb xcb, string name, string extName)
         {
@@ -47,11 +55,11 @@ namespace xnbgenerator.Generators
                 else if (o is @enum)
                     GenEnum(cwt, o as @enum);
                 else if (o is @event)
-                    GenEvent(cwt, o as @event, name);
+                    GenEvent(cwt, o as @event);
                 else if (o is @request)
-                    GenRequest(cwt, o as @request, name);
+                    GenRequest(cwt, o as @request);
                 else if (o is @error)
-                    GenError(cwt, o as @error, name);
+                    GenError(cwt, o as @error);
             }
 
             cwt.WriteLine("#pragma warning restore 0169, 0414");
@@ -66,9 +74,7 @@ namespace xnbgenerator.Generators
             if (x.name == null)
                 return;
 
-			string xName = Generator.NewTypeToCs(x.name, "Id");
-
-            Generator.idMap.Add(xName, "uint");
+			string xName = typeMap.NewTypeToCs(x.name, "Id");
 
             cwt.WriteLine("[StructLayout (LayoutKind.Explicit, Pack=1, CharSet=CharSet.Ansi)]");
             cwt.WriteLine("public struct " + xName);
@@ -117,7 +123,7 @@ namespace xnbgenerator.Generators
                 return;
 
             cwt.WriteLine("[Event (" + e.number + ")]");
-			GenClass(cwt, Generator.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Event"), null, " : " + 
+			GenClass(cwt, typeMap.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Event"), null, " : " + 
 	                 GeneratorUtil.ToCs(e.@ref) + "Event");
         }
 
@@ -127,29 +133,29 @@ namespace xnbgenerator.Generators
                 return;
 
             cwt.WriteLine("[Error (" + e.number + ")]");
-			GenClass(cwt, Generator.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Error"), null, 
+			GenClass(cwt, typeMap.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Error"), null, 
 			         " : " + GeneratorUtil.ToCs(e.@ref) + "Error");
         }
 
-        void GenError(CodeWriter cwt, @error e, string name)
+        void GenError(CodeWriter cwt, @error e)
         {
             if (e.name == null)
                 return;
 
             cwt.WriteLine("[Error (" + e.number + ")]");
-			GenClass(cwt, Generator.NewTypeToCs(Generator.TypeToCs(e.name) + "Error"), e.field);
+			GenClass(cwt, typeMap.NewTypeToCs(typeMap.TypeToCs(e.name) + "Error"), e.field);
         }
 
-        void GenEvent(CodeWriter cwt, @event e, string name)
+        void GenEvent(CodeWriter cwt, @event e)
         {
             if (e.name == null)
                 return;
 
             cwt.WriteLine("[Event (" + e.number + ")]");
-			GenClass(cwt, Generator.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Event"), e.Items, " : " + "EventArgs");
+			GenClass(cwt, typeMap.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Event"), e.Items, " : " + "EventArgs");
         }
 
-        void GenRequest(CodeWriter cwt, @request r, string name)
+        void GenRequest(CodeWriter cwt, @request r)
         {
             if (r.name == null)
                 return;
@@ -157,12 +163,12 @@ namespace xnbgenerator.Generators
             string inherits = isExtension ? "ExtensionRequest" : "Request";
 
             cwt.WriteLine("[Request (" + r.opcode + ")]");
-			GenClass(cwt, Generator.NewTypeToCs(GeneratorUtil.ToCs(r.name) + "Request"), r.Items);
+			GenClass(cwt, typeMap.NewTypeToCs(GeneratorUtil.ToCs(r.name) + "Request"), r.Items);
 
             if (r.reply != null)
             {
                 cwt.WriteLine("[Reply (" + r.opcode + ")]");
-				GenClass(cwt, Generator.NewTypeToCs(GeneratorUtil.ToCs(r.name) + "Reply"), r.reply.Items);
+				GenClass(cwt, typeMap.NewTypeToCs(GeneratorUtil.ToCs(r.name) + "Reply"), r.reply.Items);
             }
         }
 
@@ -200,7 +206,7 @@ namespace xnbgenerator.Generators
 			basic = !(s.name.EndsWith("Rep") || s.name.EndsWith("Req") || s.name == "DEPTH" 
 			          || s.name == "SCREEN" || s.name == "STR" || s.name == "HOST");
 			
-			GenClass(cwt, Generator.NewTypeToCs(s.name), s.Items);
+			GenClass(cwt, typeMap.NewTypeToCs(s.name), s.Items);
 
             basic = false;
         }
@@ -224,8 +230,8 @@ namespace xnbgenerator.Generators
                 if (ob is field)
                 {
                     field f = ob as field;
-					string fType = Generator.TypeToCs(f.type);
-					offset += Generator.SizeOfType(fType);
+					string fType = typeMap.TypeToCs(f.type);
+					offset += typeMap.SizeOfType(fType);
                 }
                 else if (ob is pad)
                 {
@@ -323,7 +329,7 @@ namespace xnbgenerator.Generators
 							list l = ob as list;
 
 							string lName = GeneratorUtil.ToCs(l.name);
-							string lType = Generator.TypeToCs(l.type);
+							string lType = typeMap.TypeToCs(l.type);
 
 							if (lName == sName)
 							{
@@ -347,7 +353,7 @@ namespace xnbgenerator.Generators
 							valueparam v = ob as valueparam;
 
 							string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);                     
-							string vType = Generator.TypeToCs(v.valuemasktype);
+							string vType = typeMap.TypeToCs(v.valuemasktype);
 
 							if (vType == "uint")
 							{
@@ -377,7 +383,7 @@ namespace xnbgenerator.Generators
 							list l = ob as list;
 
 							string lName = GeneratorUtil.ToCs(l.name);
-							string lType = Generator.TypeToCs(l.type);
+							string lType = typeMap.TypeToCs(l.type);
 
 							if (lName == sName)
 							{
@@ -395,7 +401,7 @@ namespace xnbgenerator.Generators
 							valueparam v = ob as valueparam;
 
 							string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);                     
-							string vType = Generator.TypeToCs(v.valuemasktype);
+							string vType = typeMap.TypeToCs(v.valuemasktype);
 
 							if (vType == "uint")
 							{
@@ -426,7 +432,7 @@ namespace xnbgenerator.Generators
 							lName = "Values";
 						}
 
-						string lType = Generator.TypeToCs(l.type);
+						string lType = typeMap.TypeToCs(l.type);
 
 						if (!sizeParams.ContainsKey(l.name))
 						{
@@ -444,11 +450,11 @@ namespace xnbgenerator.Generators
 
 						if (l.type == "CHAR2B" || lType == "sbyte")
 						{
-							cwt.WriteLine("public " + "string" + " @" + lName + ";");
+							cwt.WriteLine("public string @" + lName + ";");
 						}
 						else
 						{
-							cwt.WriteLine("public " + lType + "[]" + " @" + lName + ";");
+							cwt.WriteLine("public " + lType + "[] @" + lName + ";");
 						}
 
 						offset += 4;
@@ -458,7 +464,7 @@ namespace xnbgenerator.Generators
 						valueparam v = ob as valueparam;
 
 						string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);
-						string vType = Generator.TypeToCs(v.valuemasktype);
+						string vType = typeMap.TypeToCs(v.valuemasktype);
 
 						cwt.WriteLine("//public ValueList<" + vType + "> @" + vName + ";");
 						cwt.WriteLine("public " + vType + "[] @" + vName + ";");
@@ -529,7 +535,7 @@ namespace xnbgenerator.Generators
                             fName = "Value";
                         }
 
-						string fType = Generator.TypeToCs(f.type);
+						string fType = typeMap.TypeToCs(f.type);
 
 						//in non-extension requests, the data field carries the first element
 						if (withOffsets)
@@ -541,7 +547,7 @@ namespace xnbgenerator.Generators
                             else
                             {
                                 cwt.WriteLine("[FieldOffset (" + offset + ")]");
-								offset += Generator.SizeOfType(fType);
+								offset += typeMap.SizeOfType(fType);
                             }
                         }
 

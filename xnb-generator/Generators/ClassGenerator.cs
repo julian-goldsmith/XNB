@@ -9,12 +9,20 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 using Schemas;
+using xnbgenerator.Generators.Types;
 
 namespace xnbgenerator.Generators
 {
     public class ClassGenerator
     {
 		bool isExtension = false;
+
+		private TypeMap typeMap;
+
+		public ClassGenerator(TypeMap _typeMap)
+		{
+			typeMap = _typeMap;
+		}
 
         public void Generate(xcb xcb, string name, string extName)
 		{
@@ -181,7 +189,7 @@ namespace xnbgenerator.Generators
                         string paramName = "@" + GeneratorUtil.ToParm(GeneratorUtil.ToCs(f.name));
 
 						methodParameters.Add(Parameter(Identifier(paramName)).
-						                     WithType(IdentifierName(Generator.TypeToCs(f.type))));
+						                     WithType(IdentifierName(typeMap.TypeToCs(f.type))));
 
                         methodBody.Add(ExpressionStatement(
                             AssignmentExpression(SyntaxKind.SimpleAssignmentExpression,
@@ -237,7 +245,7 @@ namespace xnbgenerator.Generators
                     {
                         valueparam v = ob as valueparam;
                         string vName = (v.valuelistname == null) ? "Values" : GeneratorUtil.ToCs(v.valuelistname);
-                        string vType = Generator.TypeToCs(v.valuemasktype);
+						string vType = typeMap.TypeToCs(v.valuemasktype);
 
                         string paramName = "@" + GeneratorUtil.ToParm(vName);
 

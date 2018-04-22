@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Mono.Options;
+using xnbgenerator.Generators.Types;
 
 namespace xnbgenerator
 {
@@ -25,13 +26,15 @@ namespace xnbgenerator
                 return 1;
             }
 
-            Generator.LoadTypeMap("TypeMap");
-			Generator.LoadTypeMap(reference + "TypeMap");
+			TypeMap typeMap = new TypeMap();
+
+            typeMap.Load("TypeMap");
+			typeMap.Load(reference + "TypeMap");
 
             foreach (string src in srcFiles)
             {
-				Generator.Generate(src, outName);
-				Generator.SaveTypeMap(outName + "TypeMap");
+				Generator.Generate(typeMap, src, outName);
+				typeMap.Save(outName + "TypeMap");
             }
 
             return 0;
