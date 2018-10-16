@@ -1,5 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
 using Schemas;
 using xnbgenerator.Generators.Types;
 
@@ -21,60 +29,130 @@ namespace xnbgenerator.Generators
         {
 			isExtension = !string.IsNullOrEmpty(extName);
 
-            CodeWriter cwt = new CodeWriter(name + "Types.cs");
+            List<MemberDeclarationSyntax> classMembers = new List<MemberDeclarationSyntax>();
 
-            cwt.WriteLine("using System;");
-            cwt.WriteLine("using System.Collections;");
-            cwt.WriteLine("using System.Collections.Generic;");
-            cwt.WriteLine("using System.Runtime.InteropServices;");
-            cwt.WriteLine("using Mono.Unix;");
-            cwt.WriteLine("using Xnb.Protocol.Xnb;");
-            cwt.WriteLine("using Xnb.Protocol.XProto;");
-            cwt.WriteLine();
+            AccessorDeclarationSyntax xnameGetter =
+                AccessorDeclaration(SyntaxKind.GetAccessorDeclaration,
+                                    Block(ReturnStatement(LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(extName)))));
 
-            cwt.WriteLine("namespace Xnb.Protocol." + name);
-
-            cwt.WriteLine("{");
-
-            cwt.WriteLine("#pragma warning disable 0169, 0414");
+            PropertyDeclarationSyntax xnameProperty =
+                PropertyDeclaration(List<AttributeListSyntax>(),
+                                    TokenList(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.OverrideKeyword)),
+                                    PredefinedType(Token(SyntaxKind.StringKeyword)),
+                                    null, Identifier("XName"), AccessorList(SingletonList(xnameGetter)));
+            classMembers.Add(xnameProperty);
 
             foreach (object o in xcb.Items)
             {
-                if (o == null)
-                    continue;
-                else if (o is @xidtype)
-                    GenXidType(cwt, o as @xidtype);
-                else if (o is @errorcopy)
-                    GenErrorCopy(cwt, o as @errorcopy);
-                else if (o is @eventcopy)
-                    GenEventCopy(cwt, o as @eventcopy);
-                else if (o is @struct)
-                    GenStruct(cwt, o as @struct);
-                else if (o is @union)
-                    GenUnion(cwt, o as @union);
-                else if (o is @enum)
-                    GenEnum(cwt, o as @enum);
-                else if (o is @event)
-                    GenEvent(cwt, o as @event);
-                else if (o is @request)
-                    GenRequest(cwt, o as @request);
-                else if (o is @error)
-                    GenError(cwt, o as @error);
+				if (o is @xidtype)
+				{
+					classMembers.Add(GenXidType(o as @xidtype));
+				}
+				else if (o is @errorcopy)
+				{
+					classMembers.Add(GenErrorCopy(o as @errorcopy));
+				}
+				else if (o is @eventcopy)
+				{
+					classMembers.Add(GenEventCopy(o as @eventcopy));
+				}
+				else if (o is @struct)
+				{
+					classMembers.Add(GenStruct(o as @struct));
+				}
+				else if (o is @union)
+				{
+					classMembers.Add(GenUnion(o as @union));
+				}
+				else if (o is @enum)
+				{
+					classMembers.Add(GenEnum(o as @enum));
+				}
+				else if (o is @event)
+				{
+					classMembers.Add(GenEvent(o as @event));
+				}
+				else if (o is @request)
+				{
+					classMembers.Add(GenRequest(o as @request));
+				}
+				else if (o is @error)
+				{
+					classMembers.Add(GenError(o as @error));
+				}
             }
 
-            cwt.WriteLine("#pragma warning restore 0169, 0414");
+            ClassDeclarationSyntax cd =
+                ClassDeclaration(name).
+                AddBaseListTypes(SimpleBaseType(IdentifierName("Extension"))).
+                WithMembers(List(classMembers));
 
-            cwt.WriteLine("}");
+            List<UsingDirectiveSyntax> usings =
+                new[]
+                {
+                    "System", "System.Collections", "System.Collections.Generic", "System.Runtime.InteropServices",
+                    "Mono.Unix", "XNB.Protocol.XNB", "XNB.Protocol.XProto"
+                }.
+                Select(IdentifierName).
+                Select(UsingDirective).
+                ToList();
 
-            cwt.Close();
+            NamespaceDeclarationSyntax ns =
+                NamespaceDeclaration(IdentifierName("XNB"),
+                                     List<ExternAliasDirectiveSyntax>(),
+                                     List<UsingDirectiveSyntax>(),
+                                     SingletonList<MemberDeclarationSyntax>(cd));
+
+            CompilationUnitSyntax cu = CompilationUnit().
+                WithUsings(List(usings)).
+                WithMembers(SingletonList<MemberDeclarationSyntax>(ns)).
+                NormalizeWhitespace();
+
+            using (FileStream fs = new FileStream(name + ".cs", FileMode.Create))
+            using (TextWriter tw = new StreamWriter(fs))
+            {
+                cu.WriteTo(tw);
+            }
         }
 
-        void GenXidType(CodeWriter cwt, @xidtype x)
+		MemberDeclarationSyntax GenXidType(@xidtype x)
         {
-            if (x.name == null)
-                return;
+			if (x.name == null)
+			{
+				return null;                    // FIXME
+			}
 
 			string xName = typeMap.NewTypeToCs(x.name, "Id");
+
+			/*
+             * 
+                AttributeList(
+                    SingletonSeparatedList<AttributeSyntax>(
+                        Attribute(
+                            IdentifierName("StructLayout"), 
+                            AttributeArgumentList(
+                                SeparatedList(new[] {
+                                    AttributeArgument(
+                                        MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                                                               IdentifierName("LayoutKind"),
+                                                               IdentifierName("Explicit")))
+                            }))))))*/
+            
+			FieldDeclarationSyntax valueDec = 
+				FieldDeclaration(SingletonList(
+    				AttributeList(SeparatedList(new[] { 
+    				    Attribute(
+    					    IdentifierName("FieldOffset"), 
+    					    AttributeArgumentList(
+    						    SingletonSeparatedList(
+    							    AttributeArgument(
+    								    LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(0))))))
+    			    }))),
+    				TokenList(Token(SyntaxKind.PrivateKeyword)),
+    				VariableDeclaration(PredefinedType(Token(SyntaxKind.UIntKeyword)),
+    									SeparatedList(new[] { VariableDeclarator("Value") })));
+
+
 
             cwt.WriteLine("[StructLayout (LayoutKind.Explicit, Pack=1, CharSet=CharSet.Ansi)]");
             cwt.WriteLine("public struct " + xName);
@@ -117,45 +195,76 @@ namespace xnbgenerator.Generators
             cwt.WriteLine();
         }
 
-        void GenEventCopy(CodeWriter cwt, @eventcopy e)
-        {
-            if (e.name == null)
-                return;
+		AttributeListSyntax BuildSingleAttributeList(string name, string value)
+		{
+			return AttributeList(
+                SingletonSeparatedList(
+                    Attribute(
+                        IdentifierName(name),
+                        AttributeArgumentList(
+                            SingletonSeparatedList(
+                                AttributeArgument(
+									LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(value))))))));
+		}
 
-            cwt.WriteLine("[Event (" + e.number + ")]");
-			GenClass(cwt, typeMap.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Event"), null, " : " + 
-	                 GeneratorUtil.ToCs(e.@ref) + "Event");
+		BaseListSyntax BuildSingleBaseList(string baseName)
+		{
+            return
+                BaseList(
+                    SingletonSeparatedList<BaseTypeSyntax>(
+                        SimpleBaseType(
+                            IdentifierName(baseName))));
+		}
+
+		MemberDeclarationSyntax GenEventCopy(@eventcopy e)
+        {
+			if (e.name == null)
+			{
+				throw new InvalidOperationException("Name cannot be null");
+			}
+
+			return
+				ClassDeclaration(typeMap.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Event")).
+				    AddAttributeLists(BuildSingleAttributeList("Event", e.number)).
+					AddBaseListTypes(SimpleBaseType(IdentifierName(GeneratorUtil.ToCs(e.@ref) + "Event")));
         }
 
-        void GenErrorCopy(CodeWriter cwt, @errorcopy e)
+		MemberDeclarationSyntax GenErrorCopy(@errorcopy e)
         {
-            if (e.name == null)
-                return;
-
-            cwt.WriteLine("[Error (" + e.number + ")]");
-			GenClass(cwt, typeMap.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Error"), null, 
-			         " : " + GeneratorUtil.ToCs(e.@ref) + "Error");
+			if (e.name == null)
+			{
+				throw new InvalidOperationException("Name cannot be null");
+			}
+                
+            return
+                ClassDeclaration(typeMap.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Error")).
+                    AddAttributeLists(BuildSingleAttributeList("Error", e.number)).
+			        AddBaseListTypes(SimpleBaseType(IdentifierName(GeneratorUtil.ToCs(e.@ref) + "Error")));
         }
 
-        void GenError(CodeWriter cwt, @error e)
+		MemberDeclarationSyntax GenError(@error e)
         {
-            if (e.name == null)
-                return;
+			if (e.name == null)
+			{
+                throw new InvalidOperationException("Name cannot be null");
+			}
 
-            cwt.WriteLine("[Error (" + e.number + ")]");
-			GenClass(cwt, typeMap.NewTypeToCs(typeMap.TypeToCs(e.name) + "Error"), e.field);
+			return GenClass(typeMap.NewTypeToCs(typeMap.TypeToCs(e.name) + "Error"), e.field).
+			    AddAttributeLists(BuildSingleAttributeList("Error", e.number));
         }
 
-        void GenEvent(CodeWriter cwt, @event e)
+		MemberDeclarationSyntax GenEvent(@event e)
         {
             if (e.name == null)
-                return;
+			{            
+                throw new InvalidOperationException("Name cannot be null");
+			}
 
-            cwt.WriteLine("[Event (" + e.number + ")]");
-			GenClass(cwt, typeMap.NewTypeToCs(GeneratorUtil.ToCs(e.name) + "Event"), e.Items, " : " + "EventArgs");
+			return GenClass(typeMap.NewTypeToCs(typeMap.TypeToCs(e.name) + "Event"), e.Items, " : " + "EventArgs").
+                AddAttributeLists(BuildSingleAttributeList("Event", e.number));
         }
 
-        void GenRequest(CodeWriter cwt, @request r)
+		MemberDeclarationSyntax GenRequest(@request r)
         {
             if (r.name == null)
                 return;
@@ -172,7 +281,7 @@ namespace xnbgenerator.Generators
             }
         }
 
-        void GenEnum(CodeWriter cwt, @enum e)
+		MemberDeclarationSyntax GenEnum(@enum e)
         {
             if (e.name == null)
                 return;
@@ -190,12 +299,12 @@ namespace xnbgenerator.Generators
             cwt.WriteLine();
         }
 
-        void GenUnion(CodeWriter cwt, @union u)
+		MemberDeclarationSyntax GenUnion(@union u)
         {
             return;
         }
 
-        void GenStruct(CodeWriter cwt, @struct s)
+		MemberDeclarationSyntax GenStruct(@struct s)
         {
 			if (s.name == null)
 			{
@@ -211,7 +320,7 @@ namespace xnbgenerator.Generators
             basic = false;
         }
 
-        void GenClass(CodeWriter cwt, string sName, object[] sItems)
+		ClassDeclarationSyntax GenClass(string sName, object[] sItems)
         {
             GenClass(cwt, sName, sItems, "");
         }
@@ -245,7 +354,7 @@ namespace xnbgenerator.Generators
             return offset;
         }
   
-        void GenClass(CodeWriter cwt, string sName, object[] sItems, string suffix)
+		ClassDeclarationSyntax GenClass(string sName, object[] sItems, string suffix)
         {
             Dictionary<string, int> sizeParams = new Dictionary<string, int>();
 
@@ -478,7 +587,7 @@ namespace xnbgenerator.Generators
             cwt.WriteLine();
         }
 
-        int GenClassData(CodeWriter cwt, string sName, object[] sItems, string suffix, bool withOffsets)
+		Tuple<MemberDeclarationSyntax, int> GenClassData(string sName, object[] sItems, string suffix, bool withOffsets)
         {
             string sizeString = "";
 
